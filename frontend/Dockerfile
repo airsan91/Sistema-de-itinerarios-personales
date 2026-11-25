@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copia solo los manifiestos primero para aprovechar la cache de capas de
 # Docker: `npm ci` no se vuelve a correr si package*.json no cambio.
-COPY package.json package-lock.json ./
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 
 COPY . .
