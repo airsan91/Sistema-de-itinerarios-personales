@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=https://render.com/schema/render.yaml.json
+# Blueprint de Render, todo en plan gratis. Guia: infra/render/README.md
+services:
+  - type: web
+    name: itinerarios-api
+    runtime: docker
+    plan: free
+    region: virginia
+    branch: develope
+    dockerfilePath: ./infra/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: OAUTH2_CLIENT_ID
+        value: itinerary-service
+      - key: OAUTH2_CLIENT_SECRET
+        generateValue: true
+      - key: DEMO_USER
+        value: viajero
+      - key: DEMO_PASSWORD # Render la pide al crear el Blueprint
+        sync: false
+      - key: RABBITMQ_URL # amqps://... de CloudAMQP; Render la pide
+        sync: false
+      - key: API_COLOMBIA_BASE_URL
+        value: https://api-colombia.com/api/v1
+      - key: OTEL_SDK_DISABLED # no hay Jaeger en este despliegue
+        value: "true"
+      - key: FORWARDED_ALLOW_IPS # IP real del cliente para el rate limit
+        value: "*"
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: itinerarios-redis
+          property: connectionString
+      - key: ITINERARY_DB_HOST
+        fromDatabase: { name: itinerarios-db, property: host }
+      - key: ITINERARY_DB_PORT
+        fromDatabase: { name: itinerarios-db, property: port }
+      - key: ITINERARY_DB_NAME
+        fromDatabase: { name: itinerarios-db, property: database }
+      - key: ITINERARY_DB_USER
+        fromDatabase: { name: itinerarios-db, property: user }
+      - key: ITINERARY_DB_PASSWORD
+        fromDatabase: { name: itinerarios-db, property: password }
+
+  - type: web
+    name: itinerarios-web
+    runtime: static
+    branch: develope
+    rootDir: frontend
+    # Escribe la URL publica del API antes de compilar (falla si no existe).
+    buildCommand: test -n "$API_BASE_URL" && npm ci && echo "window.__API_BASE__ = '$API_BASE_URL';" > public/env.js && npm run build -- --configuration production
+    staticPublishPath: dist/itinerarios-frontend/browser
+    routes:
+      - type: rewrite # Angular Router usa History API
+        source: /*
+        destination: /index.html
+    headers:
+      - path: /env.js
+        name: Cache-Control
+        value: no-cache
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: API_BASE_URL
+        fromService:
+          type: web
+          name: itinerarios-api
+          envVarKey: RENDER_EXTERNAL_URL
+
+  - type: keyvalue
+    name: itinerarios-redis
+    plan: free
+    region: virginia
+    ipAllowList: [] # solo red interna
+
+databases:
+  - name: itinerarios-db
+    plan: free
+    region: virginia
+    postgresMajorVersion: "16"
+    databaseName: itinerary
+    user: itinerary
+    ipAllowList: [] # solo red interna

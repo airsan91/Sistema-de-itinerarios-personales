@@ -15,8 +15,11 @@ export class ApiService {
   /** Detecta el host actual en vez de asumir "localhost": así el mismo build
    * funciona igual si se accede desde otra IP de la LAN (docker-compose
    * expone el gateway en el puerto 8000 del mismo host que sirve el
-   * frontend). */
-  readonly apiBase = `${window.location.protocol}//${window.location.hostname}:8000`;
+   * frontend). Si public/env.js define una URL (despliegue en Render), esa
+   * tiene prioridad. */
+  readonly apiBase =
+    (window as { __API_BASE__?: string }).__API_BASE__ ||
+    `${window.location.protocol}//${window.location.hostname}:8000`;
 
   constructor(private readonly http: HttpClient) {}
 
